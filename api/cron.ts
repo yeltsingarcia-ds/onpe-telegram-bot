@@ -49,6 +49,8 @@ async function fetchSummary() {
 function extractTop3(snapshotText: string) {
   const parsed = JSON.parse(snapshotText);
 
+  console.log("ONPE RAW:", JSON.stringify(parsed, null, 2)); // 👈 AÑADE ESTO
+
   const candidatos =
     parsed?.data?.resultados ??
     parsed?.data ??
@@ -56,17 +58,12 @@ function extractTop3(snapshotText: string) {
     [];
 
   if (!Array.isArray(candidatos)) {
-    console.log("DEBUG ONPE:", JSON.stringify(parsed, null, 2));
     throw new Error("Formato inesperado de ONPE");
   }
 
   return candidatos
     .map((c: any) => ({
-      nombre:
-        c.nombre ??
-        c.nombreCompleto ??
-        c.organizacionPolitica ??
-        "N/A",
+      nombre: c.nombre ?? c.nombreCompleto ?? c.organizacionPolitica ?? "N/A",
       votos: Number(c.votos ?? c.totalVotos ?? c.voto ?? 0),
       porcentaje: Number(c.porcentaje ?? c.porcentajeVotos ?? 0),
     }))
