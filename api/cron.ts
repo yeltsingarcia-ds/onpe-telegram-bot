@@ -1,3 +1,4 @@
+import { parseSnapshotEntries } from "@/lib/parse-onpe";
 import { put } from "@vercel/blob";
 
 // ================= ENV =================
@@ -14,9 +15,6 @@ const ONPE_HEADERS = {
   accept: "*/*",
   "content-type": "application/json",
   referer: "https://resultadoelectoral.onpe.gob.pe/main/presidenciales",
-  "sec-fetch-dest": "empty",
-  "sec-fetch-mode": "cors",
-  "sec-fetch-site": "same-origin",
   "user-agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
 };
@@ -43,41 +41,6 @@ async function fetchSummary() {
 
   const json = await res.json();
   return json.data ?? json;
-}
-
-// ================= TOP 3 =================
-function extractTop3(snapshotText: string) {
-  const parsed = JSON.parse(snapshotText);
-
-  // 🔥 buscar el array correcto dinámicamente
-  let candidatos: any[] = [];
-
-  // probar posibles rutas reales
-  if (Array.isArray(parsed)) candidatos = parsed;
-  else if (Array.isArray(parsed.data)) candidatos = parsed.data;
-  else if (Array.isArray(parsed.data?.resultados)) candidatos = parsed.data.resultados;
-  else if (Array.isArray(parsed.resultados)) candidatos = parsed.resultados;
-  else if (Array.isArray(parsed.data?.items)) candidatos = parsed.data.items;
-  else {
-    console.log("Estructura ONPE desconocida:", parsed);
-    throw new Error("No se pudo encontrar lista de candidatos");
-  }
-
-  return candidatos
-    .map((c: any) => ({
-      nombre:
-        c.nombreCandidato ??
-        c.candidato ??
-        c.nombre ??
-        c.organizacionPolitica ??
-        "N/A",
-      votos:
-        Number(c.totalVotos ?? c.votos ?? c.voto ?? 0),
-      porcentaje:
-        Number(c.porcentajeVotos ?? c.porcentaje ?? 0),
-    }))
-    .sort((a, b) => b.votos - a.votos)
-    .slice(0, 3);
 }
 
 // ================= UTILS =================
@@ -132,7 +95,6 @@ async function sendTelegram(photo: string, caption: string) {
 }
 
 // ================= IMAGEN =================
-// TEMPORAL (luego conectamos tu render real)
 function buildImage(top3: any[]) {
   return `https://placehold.co/1200x630/png?text=${encodeURIComponent(
     `${top3[0].nombre} vs ${top3[1].nombre} vs ${top3[2].nombre}`
@@ -186,9 +148,14 @@ export default async function handler(req: any, res: any) {
       fetchSummary(),
     ]);
 
-    // ... resto igual
+    // 🔥 PARSEO CORRECTO
+    const parsed = parseSnapshotEntries(snapshot, 3);
 
-    const top3 = extractTop3(snapshot);
+    const top3 = parsed.map((c) => ({
+      nombre: c.nombreCandidato,
+      votos: c.totalVotosValidos,
+      porcentaje: c.porcentajeVotosValidos,
+    }));
 
     const nextState = {
       updatedAt: summary.fechaActualizacion,
