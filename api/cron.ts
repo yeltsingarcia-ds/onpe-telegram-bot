@@ -47,10 +47,28 @@ async function fetchSummary() {
 
 // ================= TOP 3 =================
 function extractTop3(snapshotText: string) {
-  const data = JSON.parse(snapshotText);
+  const parsed = JSON.parse(snapshotText);
 
-  // Ajuste típico ONPE
-  const candidatos = data ?? [];
+  // 🔥 Detectar estructura real
+  const candidatos =
+    parsed?.data ??
+    parsed?.resultados ??
+    parsed ??
+    [];
+
+  if (!Array.isArray(candidatos)) {
+    throw new Error("Formato inesperado de ONPE");
+  }
+
+  return candidatos
+    .map((c: any) => ({
+      nombre: c.nombre ?? c.nombreCompleto ?? "N/A",
+      votos: Number(c.votos ?? c.totalVotos ?? 0),
+      porcentaje: Number(c.porcentaje ?? 0),
+    }))
+    .sort((a: any, b: any) => b.votos - a.votos)
+    .slice(0, 3);
+}
 
   return candidatos
     .map((c: any) => ({
