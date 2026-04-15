@@ -63,12 +63,13 @@ function extractTop3(snapshotText: string) {
 
   return candidatos
     .map((c: any) => ({
-      nombre: c.nombre ?? c.nombreCompleto ?? c.organizacionPolitica ?? "N/A",
-      votos: Number(c.votos ?? c.totalVotos ?? c.voto ?? 0),
-      porcentaje: Number(c.porcentaje ?? c.porcentajeVotos ?? 0),
-    }))
+      nombre: c.nombreCandidato ?? c.organizacionPolitica ?? "N/A",
+      votos: Number(c.totalVotos ?? 0),
+      porcentaje: Number(c.porcentajeVotos ?? 0),
+  }))
     .sort((a: any, b: any) => b.votos - a.votos)
     .slice(0, 3);
+  
 }
 
 // ================= UTILS =================
