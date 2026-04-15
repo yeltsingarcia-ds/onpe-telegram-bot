@@ -1,20 +1,24 @@
 export function parseSnapshotEntries(snapshot: string, topCount: number = 3) {
   const parsed = JSON.parse(snapshot);
 
-  const entries = parsed.data
+  const rows = Array.isArray(parsed?.data) ? parsed.data : [];
+
+  if (!rows.length) {
+    throw new Error("No candidate rows found in ONPE snapshot");
+  }
+
+  return rows
     .map((entry: any) => ({
-      nombreCandidato: entry.nombreCandidato,
-      totalVotosValidos: Number(entry.totalVotosValidos),
-      porcentajeVotosValidos: Number(entry.porcentajeVotosValidos),
+      nombreCandidato: String(entry.nombreCandidato ?? "").trim(),
+      totalVotosValidos: Number(entry.totalVotosValidos ?? 0),
+      porcentajeVotosValidos: Number(entry.porcentajeVotosValidos ?? 0),
     }))
     .filter(
-      (e: any) =>
+      (e) =>
         e.nombreCandidato &&
-        !isNaN(e.totalVotosValidos) &&
-        !isNaN(e.porcentajeVotosValidos)
-    );
-
-  return entries
-    .sort((a: any, b: any) => b.totalVotosValidos - a.totalVotosValidos)
+        Number.isFinite(e.totalVotosValidos) &&
+        Number.isFinite(e.porcentajeVotosValidos)
+    )
+    .sort((a, b) => b.totalVotosValidos - a.totalVotosValidos)
     .slice(0, topCount);
 }
