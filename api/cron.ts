@@ -49,27 +49,35 @@ async function fetchSummary() {
 function extractTop3(snapshotText: string) {
   const parsed = JSON.parse(snapshotText);
 
-  console.log("ONPE RAW:", JSON.stringify(parsed, null, 2)); // 👈 AÑADE ESTO
+  // 🔥 buscar el array correcto dinámicamente
+  let candidatos: any[] = [];
 
-  const candidatos =
-    parsed?.data?.resultados ??
-    parsed?.data ??
-    parsed?.resultados ??
-    [];
-
-  if (!Array.isArray(candidatos)) {
-    throw new Error("Formato inesperado de ONPE");
+  // probar posibles rutas reales
+  if (Array.isArray(parsed)) candidatos = parsed;
+  else if (Array.isArray(parsed.data)) candidatos = parsed.data;
+  else if (Array.isArray(parsed.data?.resultados)) candidatos = parsed.data.resultados;
+  else if (Array.isArray(parsed.resultados)) candidatos = parsed.resultados;
+  else if (Array.isArray(parsed.data?.items)) candidatos = parsed.data.items;
+  else {
+    console.log("Estructura ONPE desconocida:", parsed);
+    throw new Error("No se pudo encontrar lista de candidatos");
   }
 
   return candidatos
     .map((c: any) => ({
-      nombre: c.nombreCandidato ?? c.organizacionPolitica ?? "N/A",
-      votos: Number(c.totalVotos ?? 0),
-      porcentaje: Number(c.porcentajeVotos ?? 0),
-  }))
-    .sort((a: any, b: any) => b.votos - a.votos)
+      nombre:
+        c.nombreCandidato ??
+        c.candidato ??
+        c.nombre ??
+        c.organizacionPolitica ??
+        "N/A",
+      votos:
+        Number(c.totalVotos ?? c.votos ?? c.voto ?? 0),
+      porcentaje:
+        Number(c.porcentajeVotos ?? c.porcentaje ?? 0),
+    }))
+    .sort((a, b) => b.votos - a.votos)
     .slice(0, 3);
-  
 }
 
 // ================= UTILS =================
