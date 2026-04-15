@@ -1,4 +1,4 @@
-import { parseSnapshotEntries } from "../../lib/parse-onpe";
+import { parseSnapshotEntries } from "../lib/parse-onpe";
 import { put } from "@vercel/blob";
 
 // ================= ENV =================
