@@ -1,51 +1,68 @@
 import { put } from "@vercel/blob";
 
-// 👇 ENV
+// ================= ENV =================
 const BOT_TOKEN = process.env.BOT_TOKEN!;
 const CHAT_ID = process.env.CHAT_ID!;
 
-// 👇 TU BASE (IMPORTANTE)
 const ONPE_URL = process.env.ONPE_URL!;
 const ONPE_SUMMARY_URL = process.env.ONPE_SUMMARY_URL!;
 
 const STATE_PATH = "onpe/latest-state.json";
 
-// ------------------ FETCH ------------------
+// ================= HEADERS ONPE =================
+const ONPE_HEADERS = {
+  accept: "*/*",
+  "content-type": "application/json",
+  referer: "https://resultadoelectoral.onpe.gob.pe/main/presidenciales",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin",
+  "user-agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+};
 
+// ================= FETCH =================
 async function fetchSnapshot() {
-  const res = await fetch(ONPE_URL, { cache: "no-store" });
+  const res = await fetch(ONPE_URL, {
+    headers: ONPE_HEADERS,
+    cache: "no-store",
+  });
+
   if (!res.ok) throw new Error("Snapshot error");
+
   return res.text();
 }
 
 async function fetchSummary() {
-  const res = await fetch(ONPE_SUMMARY_URL, { cache: "no-store" });
+  const res = await fetch(ONPE_SUMMARY_URL, {
+    headers: ONPE_HEADERS,
+    cache: "no-store",
+  });
+
   if (!res.ok) throw new Error("Summary error");
 
   const json = await res.json();
   return json.data ?? json;
 }
 
-// ------------------ TOP 3 ------------------
-
+// ================= TOP 3 =================
 function extractTop3(snapshotText: string) {
   const data = JSON.parse(snapshotText);
 
-  // ⚠️ Ajustado a estructura típica ONPE
-  const candidatos = data?.resultados ?? data ?? [];
+  // Ajuste típico ONPE
+  const candidatos = data ?? [];
 
   return candidatos
     .map((c: any) => ({
-      nombre: c.nombre,
-      votos: Number(c.votos),
-      porcentaje: Number(c.porcentaje),
+      nombre: c.nombre ?? c.nombreCompleto ?? "N/A",
+      votos: Number(c.votos ?? c.totalVotos ?? 0),
+      porcentaje: Number(c.porcentaje ?? 0),
     }))
     .sort((a: any, b: any) => b.votos - a.votos)
     .slice(0, 3);
 }
 
-// ------------------ UTILS ------------------
-
+// ================= UTILS =================
 function calcDiff(a: any, b: any) {
   return {
     votos: a.votos - b.votos,
@@ -57,8 +74,7 @@ function format(n: number) {
   return new Intl.NumberFormat("es-PE").format(n);
 }
 
-// ------------------ MENSAJE ------------------
-
+// ================= MENSAJE =================
 function buildMessage(summary: any, top3: any[]) {
   const d12 = calcDiff(top3[0], top3[1]);
   const d23 = calcDiff(top3[1], top3[2]);
@@ -66,14 +82,11 @@ function buildMessage(summary: any, top3: any[]) {
   return `
 📊 *Elecciones Perú - ONPE*
 
-🕒 Actualizado al ${summary.fechaActualizacion}
+🕒 Actualizado al ${new Date(summary.fechaActualizacion).toLocaleString("es-PE")}
 
 🗳 *Estado del conteo*
 • Actas contabilizadas: ${summary.actasContabilizadas} %
-• Total de actas: ${format(summary.totalActas)}
-• Contabilizadas: ${format(summary.contabilizadas)}
-• Para envío al JEE: ${format(summary.paraEnvioJEE)}
-• Pendientes: ${format(summary.pendientes)}
+• Total votos válidos: ${format(summary.totalVotosValidos)}
 
 📉 *Diferencias*
 • 1 vs 2: +${format(d12.votos)} votos (${d12.porcentaje}%)
@@ -81,10 +94,9 @@ function buildMessage(summary: any, top3: any[]) {
 `;
 }
 
-// ------------------ TELEGRAM ------------------
-
+// ================= TELEGRAM =================
 async function sendTelegram(photo: string, caption: string) {
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -94,30 +106,22 @@ async function sendTelegram(photo: string, caption: string) {
       parse_mode: "Markdown",
     }),
   });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Telegram error: ${text}`);
+  }
 }
 
-// ------------------ IMAGEN ------------------
-
-// 🔥 AQUÍ conectas tu función real
-async function renderTop3Image(snapshot: string, summary: any) {
-  // 👉 usa tu función existente
-  const { renderAndStoreOnpeResultsImage } = await import(
-    "@/lib/render-results-image-storage"
-  );
-
-  const result = await renderAndStoreOnpeResultsImage({
-    snapshot,
-    topCount: 3,
-    updatedAt: summary.fechaActualizacion,
-    actasContabilizadas: summary.actasContabilizadas,
-    totalVotosValidos: summary.totalVotosValidos,
-  });
-
-  return result.url;
+// ================= IMAGEN =================
+// TEMPORAL (luego conectamos tu render real)
+function buildImage(top3: any[]) {
+  return `https://placehold.co/1200x630/png?text=${encodeURIComponent(
+    `${top3[0].nombre} vs ${top3[1].nombre} vs ${top3[2].nombre}`
+  )}`;
 }
 
-// ------------------ STATE ------------------
-
+// ================= STATE =================
 async function getPrevState() {
   try {
     const res = await fetch(process.env.STATE_URL!, { cache: "no-store" });
@@ -150,8 +154,7 @@ function hasChanges(prev: any, next: any) {
   return false;
 }
 
-// ------------------ HANDLER ------------------
-
+// ================= HANDLER =================
 export default async function handler(req: any, res: any) {
   try {
     const [snapshot, summary] = await Promise.all([
@@ -172,7 +175,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true, sent: false });
     }
 
-    const imageUrl = await renderTop3Image(snapshot, summary);
+    const imageUrl = buildImage(top3);
     const message = buildMessage(summary, top3);
 
     await sendTelegram(imageUrl, message);
