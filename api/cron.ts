@@ -33,7 +33,6 @@ async function fetchSnapshot() {
 
   const text = await res.text();
 
-  // 🔥 DEBUG CLAVE
   if (text.startsWith("<")) {
     console.error("❌ ONPE devolvió HTML:", text.slice(0, 200));
     throw new Error("ONPE returned HTML instead of JSON");
@@ -112,40 +111,22 @@ async function sendTelegram(photo: string, caption: string) {
   }
 }
 
-// ================= IMAGEN =================
-// ================= IMAGEN =================
+// ================= IMAGEN (🔥 NUEVA) =================
+function cleanName(nombre: string) {
+  return nombre.split(" ").slice(0, 2).join(" ");
+}
+
 function buildImage(top3: any[]) {
-  const labels = top3.map((c) =>
-    c.nombre.split(" ").slice(0, 2).join(" ")
-  );
+  const data = top3.map((c) => ({
+    nombre: cleanName(c.nombre),
+    porcentaje: Number(c.porcentaje.toFixed(2)),
+    votos: c.votos,
+    dni: c.dniCandidato || null,
+    partido: c.codigoAgrupacionPolitica || null,
+  }));
 
-  const data = top3.map((c) => Number(c.porcentaje));
-
-  const chart = {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        {
-          data,
-          backgroundColor: ["#f47c20", "#3a7dc0", "#f2c230"],
-        },
-      ],
-    },
-    options: {
-      plugins: {
-        legend: { display: false },
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-        },
-      },
-    },
-  };
-
-  return `https://quickchart.io/chart?c=${encodeURIComponent(
-    JSON.stringify(chart)
+  return `${process.env.BASE_URL}/api/onpe-image?data=${encodeURIComponent(
+    JSON.stringify(data)
   )}`;
 }
 
@@ -196,13 +177,15 @@ export default async function handler(req: any, res: any) {
       fetchSummary(),
     ]);
 
-    // 🔥 PARSEO
     const parsed = parseSnapshotEntries(snapshot, 3);
 
+    // 🔥 IMPORTANTE: ahora incluye metadata extra
     const top3 = parsed.map((c) => ({
       nombre: c.nombreCandidato,
       votos: c.totalVotosValidos,
       porcentaje: c.porcentajeVotosValidos,
+      dniCandidato: c.dniCandidato,
+      codigoAgrupacionPolitica: c.codigoAgrupacionPolitica,
     }));
 
     console.log("✅ TOP3:", top3);
