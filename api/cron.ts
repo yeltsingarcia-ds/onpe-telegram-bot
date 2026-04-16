@@ -53,7 +53,9 @@ async function getSnapshot() {
   } catch (e) {
     console.warn("⚠️ usando snapshot cacheado");
 
-    const res = await fetch(process.env.SNAPSHOT_URL!, {
+    const url = `${process.env.BLOB_BASE_URL}/onpe/latest.json`;
+
+    const res = await fetch(url, {
       cache: "no-store",
     });
 
@@ -63,7 +65,7 @@ async function getSnapshot() {
 
     return {
       snapshot: text,
-      url: process.env.SNAPSHOT_URL,
+      url,
     };
   }
 }
