@@ -6,17 +6,16 @@ const BOT_TOKEN = process.env.BOT_TOKEN!;
 const CHAT_ID = process.env.CHAT_ID!;
 
 const ONPE_URL = process.env.ONPE_URL!;
-const ONPE_SUMMARY_URL = process.env.ONPE_SUMMARY_URL!;
-
 const STATE_PATH = "onpe/latest-state.json";
 
 // ================= HEADERS ONPE =================
 const ONPE_HEADERS = {
   accept: "*/*",
-  "content-type": "application/json",
+  "accept-language": "es-ES,es;q=0.9",
+  "cache-control": "no-cache",
   referer: "https://resultadoelectoral.onpe.gob.pe/main/presidenciales",
   "user-agent":
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
 };
 
 // ================= FETCH =================
@@ -35,27 +34,6 @@ async function fetchSnapshot() {
   }
 
   return text;
-}
-
-async function fetchSummary() {
-  const res = await fetch(ONPE_SUMMARY_URL, {
-    headers: ONPE_HEADERS,
-    cache: "no-store",
-  });
-
-  if (!res.ok) throw new Error("Summary error");
-
-  const text = await res.text();
-
-  // 🔥 FIX CLAVE
-  if (text.startsWith("<")) {
-    console.error("❌ ONPE devolvió HTML:", text.slice(0, 200));
-    throw new Error("ONPE summary returned HTML instead of JSON");
-  }
-
-  const json = JSON.parse(text);
-
-  return json.data ?? json;
 }
 
 // ================= UTILS =================
@@ -80,7 +58,7 @@ function buildMessage(summary: any, top3: any[]) {
 🕒 Actualizado al ${new Date(summary.fechaActualizacion).toLocaleString("es-PE")}
 
 🗳 *Estado del conteo*
-• Actas contabilizadas: ${summary.actasContabilizadas} %
+• Actas contabilizadas: ${summary.actasContabilizadas}
 • Total votos válidos: ${format(summary.totalVotosValidos)}
 
 📉 *Diferencias*
@@ -108,7 +86,7 @@ async function sendTelegram(photo: string, caption: string) {
   }
 }
 
-// ================= IMAGE FIX =================
+// ================= IMAGE =================
 function cleanName(nombre: string) {
   return nombre.split(" ").slice(0, 2).join(" ");
 }
@@ -124,16 +102,13 @@ async function generateAndStoreImage(top3: any[]) {
     JSON.stringify(data)
   )}`;
 
-  console.log("🧪 Generating image from:", url);
-
   const res = await fetch(url);
 
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Image endpoint error: ${res.status} - ${text}`);
+    throw new Error(`Image endpoint error: ${text}`);
   }
 
-  // 🔥 FIX CLAVE
   const contentType = res.headers.get("content-type") || "";
 
   if (!contentType.includes("image")) {
@@ -143,15 +118,11 @@ async function generateAndStoreImage(top3: any[]) {
 
   const buffer = Buffer.from(await res.arrayBuffer());
 
-  const path = `onpe/chart-${Date.now()}.png`;
-
-  const blob = await put(path, buffer, {
+  const blob = await put(`onpe/chart-${Date.now()}.png`, buffer, {
     access: "public",
     addRandomSuffix: false,
     contentType: "image/png",
   });
-
-  console.log("✅ Image uploaded:", blob.url);
 
   return blob.url;
 }
@@ -197,10 +168,8 @@ export default async function handler(req: any, res: any) {
       return res.status(401).json({ ok: false });
     }
 
-    const [snapshot, summary] = await Promise.all([
-      fetchSnapshot(),
-      fetchSummary(),
-    ]);
+    // 🔥 SOLO SNAPSHOT (SIN SUMMARY)
+    const snapshot = await fetchSnapshot();
 
     const parsed = parseSnapshotEntries(snapshot, 3);
 
@@ -209,6 +178,13 @@ export default async function handler(req: any, res: any) {
       votos: c.totalVotosValidos,
       porcentaje: c.porcentajeVotosValidos,
     }));
+
+    // 🔥 SUMMARY DERIVADO (ANTI ERROR)
+    const summary = {
+      fechaActualizacion: new Date().toISOString(),
+      totalVotosValidos: top3.reduce((acc, c) => acc + c.votos, 0),
+      actasContabilizadas: "N/D",
+    };
 
     const nextState = {
       updatedAt: summary.fechaActualizacion,
