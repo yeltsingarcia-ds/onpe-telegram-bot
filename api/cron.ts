@@ -15,9 +15,6 @@ const ONPE_HEADERS = {
   accept: "*/*",
   "content-type": "application/json",
   referer: "https://resultadoelectoral.onpe.gob.pe/main/presidenciales",
-  "sec-fetch-dest": "empty",
-  "sec-fetch-mode": "cors",
-  "sec-fetch-site": "same-origin",
   "user-agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
 };
@@ -34,8 +31,7 @@ async function fetchSnapshot() {
   const text = await res.text();
 
   if (text.startsWith("<")) {
-    console.error("❌ ONPE devolvió HTML:", text.slice(0, 200));
-    throw new Error("ONPE returned HTML instead of JSON");
+    throw new Error("ONPE returned HTML");
   }
 
   return text;
@@ -49,14 +45,7 @@ async function fetchSummary() {
 
   if (!res.ok) throw new Error("Summary error");
 
-  const text = await res.text();
-
-  if (text.startsWith("<")) {
-    console.error("❌ SUMMARY devolvió HTML:", text.slice(0, 200));
-    throw new Error("ONPE summary returned HTML");
-  }
-
-  const json = JSON.parse(text);
+  const json = await res.json();
   return json.data ?? json;
 }
 
@@ -77,8 +66,7 @@ function buildMessage(summary: any, top3: any[]) {
   const d12 = calcDiff(top3[0], top3[1]);
   const d23 = calcDiff(top3[1], top3[2]);
 
-  return `
-📊 *Elecciones Perú - ONPE*
+  return `📊 *Elecciones Perú - ONPE*
 
 🕒 Actualizado al ${new Date(summary.fechaActualizacion).toLocaleString("es-PE")}
 
@@ -111,21 +99,39 @@ async function sendTelegram(photo: string, caption: string) {
   }
 }
 
-// ================= IMAGEN =================
+// ================= IMAGE FIX =================
 function cleanName(nombre: string) {
   return nombre.split(" ").slice(0, 2).join(" ");
 }
 
-function buildImage(top3: any[]) {
+async function generateAndStoreImage(top3: any[]) {
   const data = top3.map((c) => ({
     nombre: cleanName(c.nombre),
     porcentaje: Number(c.porcentaje.toFixed(2)),
     votos: c.votos,
   }));
 
-  return `${process.env.BASE_URL}/api/onpe-image?data=${encodeURIComponent(
+  const url = `${process.env.BASE_URL}/api/onpe-image?data=${encodeURIComponent(
     JSON.stringify(data)
   )}`;
+
+  // 1. Generar imagen
+  const res = await fetch(url);
+
+  if (!res.ok) throw new Error("Error generating image");
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+
+  // 2. Subir a blob (clave)
+  const path = `onpe/chart-${Date.now()}.png`;
+
+  const blob = await put(path, buffer, {
+    access: "public",
+    addRandomSuffix: false,
+    contentType: "image/png",
+  });
+
+  return blob.url;
 }
 
 // ================= STATE =================
@@ -166,7 +172,7 @@ export default async function handler(req: any, res: any) {
     const secret = req.query?.secret;
 
     if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-      return res.status(401).json({ ok: false, error: "unauthorized" });
+      return res.status(401).json({ ok: false });
     }
 
     const [snapshot, summary] = await Promise.all([
@@ -182,8 +188,6 @@ export default async function handler(req: any, res: any) {
       porcentaje: c.porcentajeVotosValidos,
     }));
 
-    console.log("✅ TOP3:", top3);
-
     const nextState = {
       updatedAt: summary.fechaActualizacion,
       top3,
@@ -195,7 +199,9 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true, sent: false });
     }
 
-    const imageUrl = buildImage(top3);
+    // 🔥 FIX REAL
+    const imageUrl = await generateAndStoreImage(top3);
+
     const message = buildMessage(summary, top3);
 
     await sendTelegram(imageUrl, message);
