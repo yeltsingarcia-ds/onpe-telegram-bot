@@ -15,6 +15,9 @@ const ONPE_HEADERS = {
   accept: "*/*",
   "content-type": "application/json",
   referer: "https://resultadoelectoral.onpe.gob.pe/main/presidenciales",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-origin",
   "user-agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
 };
@@ -28,7 +31,15 @@ async function fetchSnapshot() {
 
   if (!res.ok) throw new Error("Snapshot error");
 
-  return res.text();
+  const text = await res.text();
+
+  // 🔥 DEBUG CLAVE
+  if (text.startsWith("<")) {
+    console.error("❌ ONPE devolvió HTML:", text.slice(0, 200));
+    throw new Error("ONPE returned HTML instead of JSON");
+  }
+
+  return text;
 }
 
 async function fetchSummary() {
@@ -39,7 +50,14 @@ async function fetchSummary() {
 
   if (!res.ok) throw new Error("Summary error");
 
-  const json = await res.json();
+  const text = await res.text();
+
+  if (text.startsWith("<")) {
+    console.error("❌ SUMMARY devolvió HTML:", text.slice(0, 200));
+    throw new Error("ONPE summary returned HTML");
+  }
+
+  const json = JSON.parse(text);
   return json.data ?? json;
 }
 
@@ -148,7 +166,7 @@ export default async function handler(req: any, res: any) {
       fetchSummary(),
     ]);
 
-    // 🔥 PARSEO CORRECTO
+    // 🔥 PARSEO
     const parsed = parseSnapshotEntries(snapshot, 3);
 
     const top3 = parsed.map((c) => ({
@@ -156,6 +174,8 @@ export default async function handler(req: any, res: any) {
       votos: c.totalVotosValidos,
       porcentaje: c.porcentajeVotosValidos,
     }));
+
+    console.log("✅ TOP3:", top3);
 
     const nextState = {
       updatedAt: summary.fechaActualizacion,
@@ -182,7 +202,7 @@ export default async function handler(req: any, res: any) {
       stateUrl,
     });
   } catch (e: any) {
-    console.error(e);
+    console.error("🔥 ERROR:", e);
     return res.status(500).json({ error: e.message });
   }
 }
