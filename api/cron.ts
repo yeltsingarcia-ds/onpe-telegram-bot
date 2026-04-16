@@ -113,9 +113,39 @@ async function sendTelegram(photo: string, caption: string) {
 }
 
 // ================= IMAGEN =================
+// ================= IMAGEN =================
 function buildImage(top3: any[]) {
-  return `https://placehold.co/1200x630/png?text=${encodeURIComponent(
-    `${top3[0].nombre} vs ${top3[1].nombre} vs ${top3[2].nombre}`
+  const labels = top3.map((c) =>
+    c.nombre.split(" ").slice(0, 2).join(" ")
+  );
+
+  const data = top3.map((c) => Number(c.porcentaje));
+
+  const chart = {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          data,
+          backgroundColor: ["#f47c20", "#3a7dc0", "#f2c230"],
+        },
+      ],
+    },
+    options: {
+      plugins: {
+        legend: { display: false },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+        },
+      },
+    },
+  };
+
+  return `https://quickchart.io/chart?c=${encodeURIComponent(
+    JSON.stringify(chart)
   )}`;
 }
 
