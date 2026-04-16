@@ -177,8 +177,10 @@ export default async function handler(req: any, res: any) {
       nombre: c.nombreCandidato,
       votos: c.totalVotosValidos,
       porcentaje: c.porcentajeVotosValidos,
+      dni: c.dniCandidato,
+      partido: c.codigoAgrupacionPolitica,
     }));
-
+    
     // 🔥 SUMMARY DERIVADO (ANTI ERROR)
     const summary = {
       fechaActualizacion: new Date().toISOString(),
