@@ -7,6 +7,7 @@ const CHAT_ID = process.env.CHAT_ID!;
 const ONPE_URL = process.env.ONPE_URL!;
 const BASE_URL = process.env.BASE_URL!;
 const STATE_PATH = "onpe/latest-state.json";
+const SNAPSHOT_PATH = "onpe/latest.json";
 
 // ================= HEADERS =================
 const ONPE_HEADERS = {
@@ -17,8 +18,8 @@ const ONPE_HEADERS = {
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 };
 
-// ================= FETCH =================
-async function fetchSnapshot() {
+// ================= FETCH + CACHE =================
+async function fetchAndCacheSnapshot() {
   const res = await fetch(ONPE_URL, {
     headers: ONPE_HEADERS,
     cache: "no-store",
@@ -28,12 +29,43 @@ async function fetchSnapshot() {
 
   if (text.startsWith("<")) {
     console.error("❌ ONPE devolvió HTML:");
-    console.error(text.slice(0, 300)); // 👈 CLAVE
-
+    console.error(text.slice(0, 300));
     throw new Error("ONPE returned HTML");
   }
 
-  return text;
+  // 🔥 guardamos snapshot
+  const blob = await put(SNAPSHOT_PATH, text, {
+    access: "public",
+    addRandomSuffix: false,
+    contentType: "application/json",
+  });
+
+  return {
+    snapshot: text,
+    url: blob.url,
+  };
+}
+
+// ================= FALLBACK =================
+async function getSnapshot() {
+  try {
+    return await fetchAndCacheSnapshot();
+  } catch (e) {
+    console.warn("⚠️ usando snapshot cacheado");
+
+    const res = await fetch(process.env.SNAPSHOT_URL!, {
+      cache: "no-store",
+    });
+
+    if (!res.ok) throw new Error("No cached snapshot");
+
+    const text = await res.text();
+
+    return {
+      snapshot: text,
+      url: process.env.SNAPSHOT_URL,
+    };
+  }
 }
 
 // ================= TELEGRAM =================
@@ -166,10 +198,9 @@ export default async function handler(req: any, res: any) {
       return res.status(401).json({ ok: false });
     }
 
-    // 1. Fetch snapshot
-    const snapshot = await fetchSnapshot();
+    // 🔥 snapshot con fallback
+    const { snapshot } = await getSnapshot();
 
-    // 2. Parse
     const parsed = parseSnapshotEntries(snapshot, 3);
 
     const top3 = parsed.map((c) => ({
@@ -180,7 +211,6 @@ export default async function handler(req: any, res: any) {
       partido: c.codigoAgrupacionPolitica,
     }));
 
-    // 3. Summary fallback (sin ONPE summary)
     const summary = {
       fechaActualizacion: new Date().toISOString(),
       totalVotosValidos: top3.reduce((acc, c) => acc + c.votos, 0),
@@ -198,7 +228,6 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true, sent: false });
     }
 
-    // 4. Generar imagen (🔥 FIX REAL)
     const imageUrl = await generateAndStoreImage(snapshot, summary);
 
     const message = buildMessage(summary, top3);
