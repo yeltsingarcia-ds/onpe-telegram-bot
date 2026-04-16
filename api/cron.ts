@@ -45,7 +45,16 @@ async function fetchSummary() {
 
   if (!res.ok) throw new Error("Summary error");
 
-  const json = await res.json();
+  const text = await res.text();
+
+  // 🔥 FIX CLAVE
+  if (text.startsWith("<")) {
+    console.error("❌ ONPE devolvió HTML:", text.slice(0, 200));
+    throw new Error("ONPE summary returned HTML instead of JSON");
+  }
+
+  const json = JSON.parse(text);
+
   return json.data ?? json;
 }
 
