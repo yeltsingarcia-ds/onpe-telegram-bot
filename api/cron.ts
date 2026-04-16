@@ -115,14 +115,25 @@ async function generateAndStoreImage(top3: any[]) {
     JSON.stringify(data)
   )}`;
 
-  // 1. Generar imagen
+  console.log("🧪 Generating image from:", url);
+
   const res = await fetch(url);
 
-  if (!res.ok) throw new Error("Error generating image");
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Image endpoint error: ${res.status} - ${text}`);
+  }
+
+  // 🔥 FIX CLAVE
+  const contentType = res.headers.get("content-type") || "";
+
+  if (!contentType.includes("image")) {
+    const text = await res.text();
+    throw new Error(`Not an image: ${text}`);
+  }
 
   const buffer = Buffer.from(await res.arrayBuffer());
 
-  // 2. Subir a blob (clave)
   const path = `onpe/chart-${Date.now()}.png`;
 
   const blob = await put(path, buffer, {
@@ -130,6 +141,8 @@ async function generateAndStoreImage(top3: any[]) {
     addRandomSuffix: false,
     contentType: "image/png",
   });
+
+  console.log("✅ Image uploaded:", blob.url);
 
   return blob.url;
 }
@@ -199,7 +212,6 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ ok: true, sent: false });
     }
 
-    // 🔥 FIX REAL
     const imageUrl = await generateAndStoreImage(top3);
 
     const message = buildMessage(summary, top3);
