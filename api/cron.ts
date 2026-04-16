@@ -111,7 +111,7 @@ async function sendTelegram(photo: string, caption: string) {
   }
 }
 
-// ================= IMAGEN (🔥 NUEVA) =================
+// ================= IMAGEN =================
 function cleanName(nombre: string) {
   return nombre.split(" ").slice(0, 2).join(" ");
 }
@@ -121,8 +121,6 @@ function buildImage(top3: any[]) {
     nombre: cleanName(c.nombre),
     porcentaje: Number(c.porcentaje.toFixed(2)),
     votos: c.votos,
-    dni: c.dniCandidato || null,
-    partido: c.codigoAgrupacionPolitica || null,
   }));
 
   return `${process.env.BASE_URL}/api/onpe-image?data=${encodeURIComponent(
@@ -144,7 +142,6 @@ async function getPrevState() {
 async function saveState(state: any) {
   const blob = await put(STATE_PATH, JSON.stringify(state), {
     access: "public",
-    allowOverwrite: true,
     addRandomSuffix: false,
   });
 
@@ -179,13 +176,10 @@ export default async function handler(req: any, res: any) {
 
     const parsed = parseSnapshotEntries(snapshot, 3);
 
-    // 🔥 IMPORTANTE: ahora incluye metadata extra
     const top3 = parsed.map((c) => ({
       nombre: c.nombreCandidato,
       votos: c.totalVotosValidos,
       porcentaje: c.porcentajeVotosValidos,
-      dniCandidato: c.dniCandidato,
-      codigoAgrupacionPolitica: c.codigoAgrupacionPolitica,
     }));
 
     console.log("✅ TOP3:", top3);
