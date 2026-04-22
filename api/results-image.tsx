@@ -2,36 +2,24 @@ import { ImageResponse } from "@vercel/og";
 
 export const runtime = "edge";
 
-export default async function handler(req: Request) {
+export async function POST(req) {
   try {
-    const method = req.method || "GET";
-
-    if (method !== "POST") {
-      return new Response("Method not allowed", { status: 405 });
-    }
-
-    let body = null;
-
-    try {
-      body = await req.json();
-    } catch {
-      body = null;
-    }
+    const body = await req.json();
 
     return new ImageResponse(
       (
         <div
           style={{
-            width: "1200px",
-            height: "630px",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            background: "#ffffff",
             fontSize: 40,
+            background: "white",
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          📊 RESULTADOS ONPE
+          ONPE OK
         </div>
       ),
       {
@@ -39,7 +27,7 @@ export default async function handler(req: Request) {
         height: 630,
       }
     );
-  } catch (error: any) {
-    return new Response(`Error: ${error.message}`, { status: 500 });
+  } catch (err) {
+    return new Response("Error", { status: 500 });
   }
 }
