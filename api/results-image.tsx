@@ -4,11 +4,19 @@ export const runtime = "edge";
 
 export default async function handler(req: Request) {
   try {
-    if (req.method !== "POST") {
+    const method = req.method || "GET";
+
+    if (method !== "POST") {
       return new Response("Method not allowed", { status: 405 });
     }
 
-    const body = await req.json();
+    let body = null;
+
+    try {
+      body = await req.json();
+    } catch {
+      body = null;
+    }
 
     return new ImageResponse(
       (
