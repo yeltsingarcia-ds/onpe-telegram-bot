@@ -1,2 +1,2 @@
 # onpe-telegram-bot
-Bot que actualiza top de candidatos presidenciales.
+Bot que actualiza top 3 de candidatos presidenciales.
