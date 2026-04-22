@@ -1,10 +1,15 @@
 import { ImageResponse } from "@vercel/og";
 
-export const runtime = "edge";
-
-export default async function handler(req: Request) {
+export default function handler(req: Request) {
   try {
-    const body = await req.json();
+    const { searchParams } = new URL(req.url);
+    const raw = searchParams.get("data");
+
+    if (!raw) {
+      return new Response("Missing data", { status: 400 });
+    }
+
+    const data = JSON.parse(raw);
 
     return new ImageResponse(
       (
@@ -19,7 +24,7 @@ export default async function handler(req: Request) {
             fontSize: 40,
           }}
         >
-          ONPE IMAGE OK
+          OK IMAGE
         </div>
       ),
       {
