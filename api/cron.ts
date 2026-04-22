@@ -94,7 +94,7 @@ async function sendTelegram(photo: string, caption: string) {
 
 // ================= IMAGE =================
 async function generateAndStoreImage(snapshot: string, summary: any) {
-  const res = await fetch(`${BASE_URL}/api/onpe/results-image`, {
+  const res = await fetch(`${BASE_URL}/api/results-image`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
